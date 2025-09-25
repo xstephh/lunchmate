@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cn } from "/Users/stephanie/lunchmate/lib/utils";
+import { cn } from "@/lib/utils";
 
 export interface Option {
   value: string;
