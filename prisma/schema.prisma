@@ -5,7 +5,7 @@ generator client {
 
 datasource db {
   // Dev = SQLite (free). For Supabase later, switch provider to "postgresql" and DATABASE_URL.
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
