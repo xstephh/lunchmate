@@ -1,0 +1,5 @@
+name,cuisine,address,lat,lng,price_level,source,place_id,average_public_rating
+"Sakura Bento","japanese","12 Sushi St",,,"2","manual",,""
+"Tea & Taste","hong_kong","88 Nathan Rd",,,"1","manual",,""
+"Green Bowl","healthy","5 Leaf Ave",,,"2","manual",,""
+"Toast & Co","western","101 Bread Ln",,,"2","manual",,""

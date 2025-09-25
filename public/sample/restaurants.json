@@ -1,0 +1,6 @@
+[
+  { "name": "Sakura Bento", "cuisine": "japanese", "address": "12 Sushi St", "source": "manual" },
+  { "name": "Tea & Taste", "cuisine": "hong_kong", "address": "88 Nathan Rd", "source": "manual" },
+  { "name": "Green Bowl", "cuisine": "healthy", "address": "5 Leaf Ave", "source": "manual" },
+  { "name": "Toast & Co", "cuisine": "western", "address": "101 Bread Ln", "source": "manual" }
+]

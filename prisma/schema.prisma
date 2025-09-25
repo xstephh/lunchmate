@@ -1,0 +1,106 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // Dev = SQLite (free). For Supabase later, switch provider to "postgresql" and DATABASE_URL.
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Cuisine {
+  japanese
+  hong_kong
+  western
+  healthy
+  other
+}
+
+enum Source {
+  manual
+  google
+}
+
+model User {
+  id          String       @id @default(cuid())
+  name        String?
+  email       String?      @unique
+  restaurants Restaurant[]
+  visits      Visit[]
+  tags        Tag[]
+  settings    Settings?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Restaurant {
+  id                    String     @id @default(cuid())
+  userId                String?
+  user                  User?      @relation(fields: [userId], references: [id])
+  name                  String
+  cuisine               Cuisine
+  address               String
+  lat                   Float?
+  lng                   Float?
+  priceLevel            Int?
+  source                Source     @default(manual)
+  placeId               String?    @unique
+  averagePublicRating   Decimal?
+  visits                Visit[]
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  @@index([source, cuisine])
+  @@index([name])
+}
+
+model Visit {
+  id            String     @id @default(cuid())
+  userId        String?
+  user          User?      @relation(fields: [userId], references: [id])
+  restaurantId  String
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  rating        Int
+  notes         String?
+  spendCents    Int?
+  visitedAt     DateTime   @default(now())
+  tags          VisitTag[]
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@index([restaurantId, visitedAt])
+}
+
+model Tag {
+  id        String     @id @default(cuid())
+  name      String
+  userId    String?
+  user      User?      @relation(fields: [userId], references: [id])
+  visitTags VisitTag[]
+  createdAt DateTime   @default(now())
+
+  @@unique([userId, name])
+}
+
+model VisitTag {
+  visitId String
+  tagId   String
+
+  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([visitId, tagId])
+}
+
+model Settings {
+  id                String   @id @default(cuid())
+  userId            String?  @unique
+  user              User?    @relation(fields: [userId], references: [id])
+  epsilon           Float    @default(0.15)
+  minPublicRating   Float    @default(4.0)
+  radiusMeters      Int      @default(1000)
+  mixedWeightManual Float    @default(0.5)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
