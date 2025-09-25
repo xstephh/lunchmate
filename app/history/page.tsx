@@ -14,7 +14,7 @@ const RatingsByCuisine = dynamic(
 
 async function getHistoryData() {
   const visits = await prisma.visit.findMany({
-    orderBy: { visitedAt: "desc" },
+    orderBy: { createdAt: "desc" },
     include: { restaurant: true },
     take: 50,
   });
@@ -76,7 +76,7 @@ export default async function HistoryPage() {
                 <tbody>
                   {visits.map((v) => (
                     <tr key={v.id} className="border-t">
-                      <td className="py-2 pr-4">{new Date(v.visitedAt).toLocaleString()}</td>
+                      <td className="py-2 pr-4">{new Date(v.createdAt).toLocaleString()}</td>
                       <td className="py-2 pr-4">{v.restaurant?.name ?? "—"}</td>
                       <td className="py-2 pr-4 capitalize">{v.restaurant?.cuisine ?? "—"}</td>
                       <td className="py-2 pr-4">{v.rating}</td>

@@ -16,7 +16,7 @@
     "fix:imports": "node tools/fix-imports.mjs",
     "prisma:use:sqlite": "cp prisma/schema.sqlite.prisma prisma/schema.prisma",
     "prisma:use:pg": "cp prisma/schema.postgres.prisma prisma/schema.prisma",
-    "prebuild": "pnpm prisma:use:pg && prisma validate && prisma generate",
+    "prebuild": "node scripts/prebuild.mjs",
     "postinstall": "prisma generate"
   },
   "prisma": {

@@ -76,8 +76,8 @@ export function attachVisitStats(
     const last =
       r.visits.length > 0
         ? r.visits.reduce(
-            (max, v) => (v.visitedAt > max ? v.visitedAt : max),
-            r.visits[0]!.visitedAt,
+            (max, v) => (v.createdAt > max ? v.createdAt : max),
+            r.visits[0]!.createdAt,
           )
         : null;
 
