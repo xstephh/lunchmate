@@ -13,11 +13,11 @@
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate",
     "fix:imports": "node tools/fix-imports.mjs",
     "prisma:use:sqlite": "cp prisma/schema.sqlite.prisma prisma/schema.prisma",
     "prisma:use:pg": "cp prisma/schema.postgres.prisma prisma/schema.prisma",
-    "prebuild": "pnpm prisma:use:pg && prisma generate"
+    "prebuild": "pnpm prisma:use:pg && prisma validate && prisma generate",
+    "postinstall": "prisma generate"
   },
   "prisma": {
     "seed": "node prisma/seed.cjs"

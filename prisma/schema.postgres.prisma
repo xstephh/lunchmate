@@ -25,12 +25,12 @@ model Restaurant {
   name                String
   cuisine             Cuisine
   address             String
-  lat                 Double?
-  lng                 Double?
+  lat                 Float?
+  lng                 Float?
   priceLevel          Int?
   source              Source   @default(manual)
   placeId             String?  @unique
-  averagePublicRating Double?
+  averagePublicRating Float?
 
   visits   Visit[]
   createdAt DateTime @default(now())
