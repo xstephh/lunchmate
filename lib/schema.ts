@@ -35,3 +35,29 @@ export const ImportPayloadSchema = z.object({
     )
     .optional(),
 });
+
+// lib/schema.ts (append to bottom)
+export const VisitPlaceSchema = z.object({
+  placeId: z.string().optional(),
+  name: z.string().min(1),
+  address: z.string().min(1),
+  lat: z.number().nullable().optional(),
+  lng: z.number().nullable().optional(),
+  priceLevel: z.number().int().min(0).max(4).nullable().optional(),
+  source: z.enum(["google", "mock", "manual"]).optional(),
+  cuisine: CuisineEnum.optional(),
+});
+
+export const VisitCreateSchema = z
+  .object({
+    restaurantId: z.string().optional(),
+    place: VisitPlaceSchema.optional(),
+    rating: z.number().int().min(1).max(5),
+    notes: z.string().max(500).optional(),
+    tags: z.array(z.string().min(1)).max(10).optional(),
+  })
+  .refine((d) => !!d.restaurantId || !!d.place, {
+    message: "restaurantId or place is required",
+  });
+
+export type VisitCreateInput = z.infer<typeof VisitCreateSchema>;
