@@ -1,4 +1,5 @@
 import { isSameRestaurant } from "../lib/dedupe";
+import { describe, it, expect } from "vitest";
 
 describe("dedupe", () => {
   it("matches by normalized name + address", () => {

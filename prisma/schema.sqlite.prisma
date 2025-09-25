@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Cuisine {
+  japanese
+  hong_kong
+  western
+  healthy
+  other
+}
+
+enum Source {
+  manual
+  google
+}
+
+model Restaurant {
+  id                  String   @id @default(cuid())
+  name                String
+  cuisine             Cuisine
+  address             String
+  lat                 Float?
+  lng                 Float?
+  priceLevel          Int?
+  source              Source   @default(manual)
+  placeId             String?  @unique
+  averagePublicRating Float?
+
+  visits   Visit[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([source, cuisine])
+}
+
+model Visit {
+  id           String   @id @default(cuid())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurantId String
+  rating       Int
+  notes        String?
+  tags         VisitTag[]
+  createdAt    DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String
+  userId    String?
+  createdAt DateTime @default(now())
+
+  visits VisitTag[]
+
+  @@unique([userId, name])
+}
+
+model VisitTag {
+  visit   Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  visitId String
+  tag     Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  tagId   String
+
+  @@id([visitId, tagId])
+}

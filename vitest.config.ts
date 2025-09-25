@@ -1,16 +1,23 @@
 // vitest.config.ts
 import { defineConfig } from "vitest/config";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
-  // Let esbuild transpile TSX/JSX using the automatic React runtime
+  // Make esbuild use the React 17+ "automatic" JSX runtime
   esbuild: {
     jsx: "automatic",
     jsxImportSource: "react",
   },
+  resolve: {
+    alias: {
+      "@": fileURLToPath(new URL("./", import.meta.url)),
+    },
+  },
   test: {
     environment: "jsdom",
-    globals: true,
     setupFiles: ["./tests/setup.ts"],
-    include: ["tests/**/*.{test,spec}.{ts,tsx}"],
+    css: true,
+    include: ["tests/**/*.test.{ts,tsx}"],
+    globals: true, // expose describe/it/expect as globals
   },
 });

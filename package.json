@@ -8,12 +8,16 @@
     "start": "next start -p 3000",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --config vitest.config.ts",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "fix:imports": "node tools/fix-imports.mjs",
+    "prisma:use:sqlite": "cp prisma/schema.sqlite.prisma prisma/schema.prisma",
+    "prisma:use:pg": "cp prisma/schema.postgres.prisma prisma/schema.prisma",
+    "prebuild": "pnpm prisma:use:pg && prisma generate"
   },
   "prisma": {
     "seed": "node prisma/seed.cjs"
@@ -44,6 +48,7 @@
     "autoprefixer": "10.4.19",
     "eslint": "8.57.0",
     "eslint-config-next": "14.2.5",
+    "globby": "^14.1.0",
     "jsdom": "24.1.0",
     "postcss": "8.4.39",
     "prisma": "^6.16.2",
