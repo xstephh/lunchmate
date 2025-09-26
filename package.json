@@ -21,7 +21,7 @@
     "prisma:select": "node scripts/select_prisma_schema.cjs",
     "prisma:use:sqlite": "PRISMA_TARGET=sqlite pnpm prisma:select",
     "prisma:use:pg": "PRISMA_TARGET=pg pnpm prisma:select",
-    "prebuild": "pnpm prisma:select && prisma validate && prisma generate",
+    "prebuild": "pnpm prisma:select && node scripts/prepare_db_for_build.cjs && prisma validate && prisma generate",
     "postinstall": "prisma generate"
   },
   "prisma": {
