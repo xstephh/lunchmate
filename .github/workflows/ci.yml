@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main]
   pull_request:
 
 jobs:
@@ -13,27 +13,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: "pnpm"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      # Provide a DB for Prisma on CI (SQLite file)
-      - name: CI env
-        run: |
-          echo 'DATABASE_URL="file:./prisma/ci.db"' >> .env
-
       - name: Prisma generate
-        run: pnpm db:generate
+        run: pnpm prisma:use:sqlite && pnpm exec prisma validate && pnpm db:generate
 
       - name: Typecheck
         run: pnpm typecheck
