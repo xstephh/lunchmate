@@ -2,11 +2,51 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ---------- Color tokens (shadcn-compatible) ---------- */
+:root {
+  /* Light */
+  --background: 210 20% 98%; /* soft gray, not pure white */
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 219 90% 56%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 19 95% 61%; /* peach */
+  --accent-foreground: 222 47% 11%;
+  --muted: 210 16% 96%;
+  --muted-foreground: 215 16% 45%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 219 90% 56%;
+  --radius: 0.75rem;
+}
+.dark {
+  /* Dark */
+  --background: 222 47% 7%;
+  --foreground: 210 20% 96%;
+  --card: 222 47% 10%;
+  --card-foreground: 210 20% 96%;
+  --popover: 222 47% 10%;
+  --popover-foreground: 210 20% 96%;
+  --primary: 219 90% 62%;
+  --primary-foreground: 0 0% 100%;
+  --accent: 19 95% 65%;
+  --accent-foreground: 210 20% 96%;
+  --muted: 222 10% 18%;
+  --muted-foreground: 220 9% 70%;
+  --border: 222 10% 20%;
+  --input: 222 10% 20%;
+  --ring: 219 90% 62%;
+}
+
 :root {
   --radius: 0.75rem;
 }
 
-html, body {
+html,
+body {
   height: 100%;
 }
 
@@ -16,4 +56,60 @@ body {
 
 .container-narrow {
   @apply max-w-3xl mx-auto px-4;
+}
+
+/* --- Base layer: ensure border/text/bg are applied globally --- */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* explicit fallbacks so dark mode never shows black text again */
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
+  }
+}
+
+/* keep your gradient blocks exactly as you have */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+      120rem 80rem at -10% -20%,
+      hsl(var(--primary) / 0.12),
+      transparent 45%
+    ),
+    radial-gradient(120rem 80rem at 110% -20%, hsl(var(--accent) / 0.12), transparent 45%),
+    radial-gradient(28rem 28rem at 15% 115%, hsl(var(--border) / 0.28), transparent 45%),
+    radial-gradient(28rem 28rem at 85% 115%, hsl(var(--border) / 0.28), transparent 45%),
+    linear-gradient(hsl(var(--background)), hsl(var(--background)));
+}
+
+.dark body::before {
+  background: radial-gradient(
+      120rem 80rem at -10% -20%,
+      hsl(var(--primary) / 0.08),
+      transparent 45%
+    ),
+    radial-gradient(120rem 80rem at 110% -20%, hsl(var(--accent) / 0.08), transparent 45%),
+    radial-gradient(28rem 28rem at 15% 115%, hsl(var(--border) / 0.18), transparent 45%),
+    radial-gradient(28rem 28rem at 85% 115%, hsl(var(--border) / 0.18), transparent 45%),
+    linear-gradient(hsl(var(--background)), hsl(var(--background)));
+}
+
+.elevated {
+  @apply shadow-md hover:shadow-lg transition-shadow;
+}
+
+.gradient-surface {
+  background: radial-gradient(60rem 30rem at 50% -10%, hsl(var(--primary) / 0.08), transparent 60%),
+    linear-gradient(to bottom, hsl(var(--background)), hsl(var(--background)) 60%);
+}
+
+.focus-ring {
+  @apply outline-none ring-2 ring-primary/40 ring-offset-2 ring-offset-background;
 }

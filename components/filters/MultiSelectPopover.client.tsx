@@ -25,7 +25,7 @@ export default function MultiSelectPopover({
 }: Props) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
   const filtered = useMemo(() => {
     if (!q.trim()) return options;
@@ -46,7 +46,7 @@ export default function MultiSelectPopover({
     onChange(Array.from(set));
   }
 
-  // Close on ESC
+  // close on ESC
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
@@ -55,19 +55,18 @@ export default function MultiSelectPopover({
     return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
-  // Close on click outside
+  // close on outside click
   useEffect(() => {
     function onDown(e: MouseEvent) {
       if (!open) return;
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, [open]);
 
   return (
-    <div ref={rootRef} className={cn("relative inline-block", className)}>
+    <div className={cn("relative inline-block", className)}>
       <button
         type="button"
         aria-haspopup="listbox"
@@ -81,63 +80,70 @@ export default function MultiSelectPopover({
         ) : (
           <span className="text-muted-foreground">Any</span>
         )}
-        <svg className="h-4 w-4 opacity-60" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
+        <svg
+          className="h-4 w-4 opacity-60"
+          viewBox="0 0 20 20"
+          fill="currentColor"
+          aria-hidden="true"
+        >
           <path d="M5.5 7l4.5 4.5L14.5 7" />
         </svg>
       </button>
 
       {open && (
         <div
+          ref={panelRef}
           role="dialog"
           className={cn(
-            // Make sure this surface is OPAQUE, not transparent
-            "absolute left-0 z-50 mt-2 w-72 rounded-xl border bg-background p-2 shadow-xl ring-1 ring-border",
-            // Safety: if parent has clipping, at least keep it on top
-            "overflow-hidden",
+            "absolute z-50 mt-2 w-72 rounded-xl border shadow-xl",
+            // solid white in light mode; tokenized popover in dark mode
+            "bg-white text-foreground dark:bg-popover dark:text-popover-foreground",
           )}
         >
-          <input
-            placeholder={placeholder}
-            className="mb-2 w-full rounded-md border bg-background px-2 py-1 text-sm"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
+          <div className="p-3">
+            <input
+              placeholder={placeholder}
+              className="mb-2 w-full rounded-md border px-2 py-1 text-sm bg-white dark:bg-background"
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
 
-          <ul role="listbox" className="max-h-64 overflow-auto text-sm">
-            {filtered.length === 0 && (
-              <li className="px-2 py-2 text-muted-foreground">No results</li>
-            )}
-            {filtered.map((o) => {
-              const checked = value.includes(o.value);
-              return (
-                <li key={o.value}>
-                  <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={checked}
-                      onChange={() => toggle(o.value)}
-                    />
-                    <span>{o.label}</span>
-                  </label>
-                </li>
-              );
-            })}
-          </ul>
+            <ul role="listbox" className="max-h-64 overflow-auto text-sm">
+              {filtered.length === 0 && (
+                <li className="px-2 py-2 text-muted-foreground">No results</li>
+              )}
+              {filtered.map((o) => {
+                const checked = value.includes(o.value);
+                return (
+                  <li key={o.value}>
+                    <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 hover:bg-muted/50">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={checked}
+                        onChange={() => toggle(o.value)}
+                      />
+                      <span>{o.label}</span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
 
-          <div className="mt-2 flex items-center justify-between gap-2">
-            <button
-              className="rounded-md border px-2 py-1 text-xs hover:bg-muted/50"
-              onClick={() => onChange([])}
-            >
-              Clear
-            </button>
-            <button
-              className="rounded-md bg-primary px-3 py-1 text-xs text-primary-foreground"
-              onClick={() => setOpen(false)}
-            >
-              Done
-            </button>
+            <div className="mt-3 flex items-center justify-between gap-3 pt-1">
+              <button
+                className="rounded-md border px-2 py-1 text-xs hover:bg-muted/50"
+                onClick={() => onChange([])}
+              >
+                Clear
+              </button>
+              <button
+                className="rounded-md bg-primary px-3 py-1 text-xs text-primary-foreground"
+                onClick={() => setOpen(false)}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -96,10 +96,7 @@ export default function HomePage() {
           <Separator className="my-2" />
 
           <div className="text-sm text-muted-foreground">
-            <p>
-              Fresh mode uses official APIs. By default, it’s <b>disabled</b> to guarantee $0 cost.
-              You can enable a provider later in settings/env.
-            </p>
+            <p></p>
           </div>
 
           <div className="flex items-center justify-between pt-2">

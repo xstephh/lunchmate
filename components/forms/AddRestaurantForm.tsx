@@ -1,105 +1,92 @@
 "use client";
 
-import React, { useState } from "react";
-import { CUISINE_OPTIONS } from "@/lib/cuisine";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { useRouter } from "next/navigation";
 
 export function AddRestaurantForm() {
   const [name, setName] = useState("");
   const [cuisine, setCuisine] = useState("japanese");
   const [address, setAddress] = useState("");
-  const [price, setPrice] = useState<number | "">("");
-  const router = useRouter();
-  const [submitting, setSubmitting] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
+  const [price, setPrice] = useState<number | string>(2);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setErr(null);
-    try {
-      const res = await fetch("/api/restaurants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          cuisine,
-          address,
-          priceLevel: typeof price === "string" ? undefined : price,
-        }),
-      });
-      if (!res.ok) {
-        const t = await res.text();
-        throw new Error(t || "Failed to create restaurant");
-      }
-      setName("");
-      setAddress("");
-      setPrice("");
-      router.refresh();
-    } catch (e: any) {
-      setErr(e.message);
-    } finally {
-      setSubmitting(false);
-    }
+  async function submit() {
+    const payload = {
+      name,
+      cuisine, // server maps to enum / joins as needed
+      address,
+      priceLevel: price === "" ? null : Number(price),
+      source: "manual",
+    };
+    await fetch("/api/restaurants", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setName("");
+    setAddress("");
+    setPrice(2);
+    alert("Added.");
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <Label htmlFor="r_name">Name</Label>
-          <Input
-            id="r_name"
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 items-end gap-x-6 gap-y-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="name">Name</Label>
+          <input
+            id="name"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            placeholder="Sakura Bento"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Sakura Bento"
-            required
           />
         </div>
-        <div>
-          <Label htmlFor="r_cuisine">Cuisine</Label>
-          <Select
-            id="r_cuisine"
+
+        <div className="space-y-2">
+          <Label htmlFor="cuisine" className="inline-block mb-1">
+            Cuisine
+          </Label>
+          <select
+            id="cuisine"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             value={cuisine}
-            onChange={(v) => setCuisine(v)}
-            options={CUISINE_OPTIONS}
-          />
+            onChange={(e) => setCuisine(e.target.value)}
+          >
+            <option value="japanese">Japanese</option>
+            <option value="hong_kong">Hong Kong</option>
+            <option value="western">Western</option>
+            <option value="healthy">Healthy</option>
+            <option value="other">Other</option>
+          </select>
         </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="sm:col-span-2">
-          <Label htmlFor="r_addr">Address</Label>
-          <Input
-            id="r_addr"
+
+        <div className="sm:col-span-2 space-y-2">
+          <Label htmlFor="address">Address</Label>
+          <input
+            id="address"
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
+            placeholder="12 Sushi St"
             value={address}
             onChange={(e) => setAddress(e.target.value)}
-            placeholder="12 Sushi St"
-            required
           />
         </div>
-        <div>
-          <Label htmlFor="r_price">Price level (0–4)</Label>
-          <Input
-            id="r_price"
+
+        <div className="sm:col-span-1 space-y-2">
+          <Label htmlFor="price">Price level (0–4)</Label>
+          <input
+            id="price"
             type="number"
             min={0}
             max={4}
+            className="w-full rounded-md border bg-background px-3 py-2 text-sm"
             value={price}
-            onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
-            placeholder="2"
+            onChange={(e) => setPrice(e.target.value)}
           />
         </div>
       </div>
-      {err && <p className="text-red-600 text-sm">{err}</p>}
-      <div className="pt-1">
-        <Button disabled={submitting} type="submit">
-          {submitting ? "Adding..." : "Add restaurant"}
-        </Button>
-      </div>
-    </form>
+
+      <Button onClick={submit}>Add restaurant</Button>
+    </div>
   );
 }

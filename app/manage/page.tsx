@@ -8,6 +8,8 @@ import { ImportForm } from "@/components/forms/ImportForm";
 import { EmptyState } from "@/components/common/EmptyState";
 import DeleteButton from "./DeleteButton.client";
 
+const SHOW_MANUAL = process.env.NEXT_PUBLIC_SHOW_MANUAL_FORM === "1";
+
 // NOTE: do not select `cuisine` here to avoid enum decoding issues in prod DB.
 async function getRestaurants() {
   return prisma.restaurant.findMany({
@@ -42,14 +44,16 @@ export default async function ManagePage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Add a manual restaurant</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AddRestaurantForm />
-        </CardContent>
-      </Card>
+      {SHOW_MANUAL && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Add a manual restaurant</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AddRestaurantForm />
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>
