@@ -8,6 +8,9 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: file:./ci.db
+      PRISMA_TARGET: sqlite
 
     steps:
       - name: Checkout
@@ -27,11 +30,13 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      - name: CI env
-        run: echo 'DATABASE_URL="file:./ci.db"' >> .env
+      # Choose the sqlite schema, validate, and generate the client
+      - name: Prisma validate & generate (sqlite)
+        run: pnpm prisma:select && pnpm exec prisma validate && pnpm db:generate
 
-      - name: Prisma generate
-        run: pnpm prisma:use:sqlite && pnpm exec prisma validate && pnpm db:generate
+      # Ensure the local sqlite schema exists before build/tests
+      - name: Prepare DB for build (sqlite)
+        run: node scripts/prepare_db_for_build.cjs
 
       - name: Typecheck
         run: pnpm typecheck
