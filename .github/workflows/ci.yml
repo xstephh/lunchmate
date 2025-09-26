@@ -30,13 +30,11 @@ jobs:
       - name: Install deps
         run: pnpm install --frozen-lockfile
 
-      # Choose the sqlite schema, validate, and generate the client
-      - name: Prisma validate & generate (sqlite)
-        run: pnpm prisma:select && pnpm exec prisma validate && pnpm db:generate
-
-      # Ensure the local sqlite schema exists before build/tests
       - name: Prepare DB for build (sqlite)
         run: node scripts/prepare_db_for_build.cjs
+
+      - name: Prisma validate & generate (sqlite)
+        run: pnpm prisma:select && pnpm exec prisma validate && pnpm db:generate
 
       - name: Typecheck
         run: pnpm typecheck
