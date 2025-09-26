@@ -122,15 +122,15 @@ model RestaurantCuisine {
 
 // ===== Provider infra =====
 model PlacesCache {
-  id        String          @id @default(cuid())
-  provider  PlacesProvider
-  key       String
+  id        String   @id @default(cuid())
+  provider  String
+  key       String   @unique
   payload   Json
   expiresAt DateTime
-  createdAt DateTime        @default(now())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@unique([provider, key])
-  @@index([expiresAt])
+  @@index([provider, expiresAt])
 }
 
 model ProviderUsage {
