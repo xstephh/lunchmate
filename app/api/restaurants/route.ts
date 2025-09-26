@@ -1,34 +1,36 @@
+// app/api/restaurants/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { slugify } from "@/lib/slug";
 
-// GET /api/restaurants?cuisine=japanese or cuisines=japanese,western
+function parseCsv(q: string | null): string[] {
+  if (!q) return [];
+  return q
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
-  const cuisineParam = searchParams.get("cuisine");
-  const cuisinesParam = searchParams.get("cuisines");
+  const cuisineSlugs = parseCsv(searchParams.get("cuisines"));
+  const tagSlugs = parseCsv(searchParams.get("tags"));
 
-  const slugs = new Set<string>();
-  if (cuisineParam) slugs.add(slugify(cuisineParam));
-  if (cuisinesParam) {
-    cuisinesParam
-      .split(",")
-      .map((s) => slugify(s))
-      .filter(Boolean)
-      .forEach((s) => slugs.add(s));
+  // Build join-based filters (does not rely on legacy enum)
+  const whereJoin: any = {};
+
+  if (cuisineSlugs.length) {
+    whereJoin.cuisines = {
+      some: { cuisine: { slug: { in: cuisineSlugs } } },
+    };
   }
-
-  const where: any = {};
-  if (slugs.size > 0) {
-    where.cuisines = {
-      some: {
-        cuisine: { slug: { in: Array.from(slugs) } },
-      },
+  if (tagSlugs.length) {
+    whereJoin.tags = {
+      some: { tag: { slug: { in: tagSlugs } } },
     };
   }
 
-  const data = await prisma.restaurant.findMany({
-    where,
+  const restaurants = await prisma.restaurant.findMany({
+    where: whereJoin,
     include: {
       cuisines: { include: { cuisine: true } },
       tags: { include: { tag: true } },
@@ -37,68 +39,51 @@ export async function GET(req: Request) {
     take: 100,
   });
 
-  return NextResponse.json({ ok: true, data });
+  return NextResponse.json({ items: restaurants });
 }
 
-// POST /api/restaurants  (create a manual restaurant & link cuisines by slug)
 export async function POST(req: Request) {
-  try {
-    const body = await req.json();
-    const {
+  const body = await req.json().catch(() => ({}));
+  const {
+    name,
+    address,
+    priceLevel,
+    lat,
+    lng,
+    cuisineSlugs = [] as string[],
+    tagSlugs = [] as string[],
+  } = body ?? {};
+
+  if (!name || !address) {
+    return NextResponse.json({ error: "name and address required" }, { status: 400 });
+  }
+
+  // Resolve slugs → ids
+  const cuisines = cuisineSlugs.length
+    ? await prisma.cuisine.findMany({ where: { slug: { in: cuisineSlugs } }, select: { id: true } })
+    : [];
+  const tags = tagSlugs.length
+    ? await prisma.tag.findMany({ where: { slug: { in: tagSlugs } }, select: { id: true } })
+    : [];
+
+  const created = await prisma.restaurant.create({
+    data: {
       name,
       address,
-      lat = null,
-      lng = null,
-      priceLevel = null,
-      source = "manual",
-      placeId = null,
-      cuisines = [] as string[] | undefined,
-    } = body || {};
+      priceLevel: priceLevel ?? null,
+      lat: lat ?? null,
+      lng: lng ?? null,
+      source: "manual",
+      cuisines: cuisines.length
+        ? { create: cuisines.map((c) => ({ cuisineId: c.id })) }
+        : undefined,
+      tags: tags.length ? { create: tags.map((t) => ({ tagId: t.id })) } : undefined,
+    },
+    include: {
+      cuisines: { include: { cuisine: true } },
+      tags: { include: { tag: true } },
+    },
+  });
 
-    if (!name || !address) {
-      return NextResponse.json(
-        { ok: false, message: "name and address required" },
-        { status: 400 },
-      );
-    }
-
-    const created = await prisma.restaurant.create({
-      data: {
-        name,
-        address,
-        lat: typeof lat === "number" ? lat : null,
-        lng: typeof lng === "number" ? lng : null,
-        priceLevel: typeof priceLevel === "number" ? priceLevel : null,
-        source,
-        placeId,
-        // DO NOT set legacy enum field `cuisine`
-      },
-    });
-
-    // link cuisines if provided
-    if (Array.isArray(cuisines) && cuisines.length > 0) {
-      for (const raw of cuisines) {
-        const slug = slugify(raw);
-        const cname = slug
-          .split("-")
-          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" ");
-        const c = await prisma.cuisine.upsert({
-          where: { slug },
-          update: { name: cname },
-          create: { name: cname, slug },
-        });
-        await prisma.restaurantCuisine.upsert({
-          where: { restaurantId_cuisineId: { restaurantId: created.id, cuisineId: c.id } },
-          update: {},
-          create: { restaurantId: created.id, cuisineId: c.id },
-        });
-      }
-    }
-
-    return NextResponse.json({ ok: true, data: created });
-  } catch (e: any) {
-    console.error(e);
-    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
-  }
+  return NextResponse.json(created, { status: 201 });
 }
