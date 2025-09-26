@@ -13,10 +13,15 @@
     "db:push": "prisma db push",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
+    "db:migrate": "prisma migrate dev",
+    "db:migrate:prod": "prisma migrate deploy",
+    "db:backfill": "node scripts/backfill_taxonomy.cjs",
+    "db:backfill:dry": "node scripts/backfill_taxonomy.cjs --dry-run",
     "fix:imports": "node tools/fix-imports.mjs",
-    "prisma:use:sqlite": "cp prisma/schema.sqlite.prisma prisma/schema.prisma",
-    "prisma:use:pg": "cp prisma/schema.postgres.prisma prisma/schema.prisma",
-    "prebuild": "node scripts/prebuild.mjs",
+    "prisma:select": "node scripts/select_prisma_schema.cjs",
+    "prisma:use:sqlite": "PRISMA_TARGET=sqlite pnpm prisma:select",
+    "prisma:use:pg": "PRISMA_TARGET=pg pnpm prisma:select",
+    "prebuild": "pnpm prisma:select && prisma validate && prisma generate",
     "postinstall": "prisma generate"
   },
   "prisma": {
