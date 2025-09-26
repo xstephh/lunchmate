@@ -1,81 +1,102 @@
-// app/api/visits/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { VisitCreateSchema } from "@/lib/schema";
-import type { Cuisine as PCuisine, Source } from "@prisma/client";
+import { slugify } from "@/lib/slug";
 
-function normalizeTagName(name: string) {
-  return name.toLowerCase().trim();
-}
-
+// POST /api/visits
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const parsed = VisitCreateSchema.parse(body);
-
-    // Resolve restaurantId from either existing id or an upsert from "place"
-    let restaurantId = parsed.restaurantId ?? null;
-
-    if (!restaurantId && parsed.place) {
-      const p = parsed.place;
-      const placeId = p.placeId ?? `${p.name}::${p.address}`;
-      const cuisine = (p.cuisine ?? "other") as unknown as PCuisine;
-      const source = (p.source ?? "google") as Source;
-
-      const upserted = await prisma.restaurant.upsert({
-        where: { placeId },
-        update: {
-          name: p.name,
-          address: p.address,
-          lat: p.lat ?? null,
-          lng: p.lng ?? null,
-          priceLevel: p.priceLevel ?? null,
-          cuisine,
-          source,
-        },
-        create: {
-          name: p.name,
-          address: p.address,
-          lat: p.lat ?? null,
-          lng: p.lng ?? null,
-          priceLevel: p.priceLevel ?? null,
-          cuisine,
-          source,
-          placeId,
-        },
-      });
-      restaurantId = upserted.id;
+    const json = await req.json();
+    const parsed = VisitCreateSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json({ ok: false, error: parsed.error.flatten() }, { status: 400 });
     }
+    const data = parsed.data;
 
-    if (!restaurantId) {
-      return new NextResponse("restaurantId or place required", { status: 400 });
-    }
+    // Ensure restaurant exists (if called with place info)
+    let restaurantId = data.restaurantId ?? null;
 
-    // Tags: find-or-create for each tag name (public tags; userId=null seam)
-    const tagNames = (parsed.tags ?? []).map(normalizeTagName).filter(Boolean);
-    const tagIds: string[] = [];
+    if (!restaurantId && data.place) {
+      // Find by placeId or by name+address
+      let existing = data.place.placeId
+        ? await prisma.restaurant.findUnique({ where: { placeId: data.place.placeId } })
+        : await prisma.restaurant.findFirst({
+            where: { name: data.place.name, address: data.place.address },
+          });
 
-    for (const name of tagNames) {
-      const existing = await prisma.tag.findFirst({ where: { userId: null, name } });
-      if (existing) tagIds.push(existing.id);
-      else {
-        const created = await prisma.tag.create({ data: { name } });
-        tagIds.push(created.id);
+      if (!existing) {
+        existing = await prisma.restaurant.create({
+          data: {
+            name: data.place.name,
+            address: data.place.address,
+            lat: data.place.lat ?? null,
+            lng: data.place.lng ?? null,
+            priceLevel: data.place.priceLevel ?? null,
+            source: data.place.source ?? "manual",
+            placeId: data.place.placeId ?? null,
+            // DO NOT set legacy enum `cuisine`
+          },
+        });
+      }
+      restaurantId = existing.id;
+
+      // Optional: attach cuisine (if provided on place) via M2M
+      if (data.place.cuisine) {
+        const slug = slugify(data.place.cuisine);
+        const cname = slug
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+        const c = await prisma.cuisine.upsert({
+          where: { slug },
+          update: { name: cname },
+          create: { name: cname, slug },
+        });
+        await prisma.restaurantCuisine.upsert({
+          where: { restaurantId_cuisineId: { restaurantId, cuisineId: c.id } },
+          update: {},
+          create: { restaurantId, cuisineId: c.id },
+        });
       }
     }
 
-    // Create visit + tag links
+    if (!restaurantId) {
+      return NextResponse.json(
+        { ok: false, error: "restaurantId or place is required" },
+        { status: 400 },
+      );
+    }
+
+    // Create the Visit
     const visit = await prisma.visit.create({
       data: {
         restaurantId,
-        rating: parsed.rating,
-        notes: parsed.notes ?? null,
-        tags: { create: tagIds.map((id) => ({ tagId: id })) },
+        rating: data.rating,
+        notes: data.notes ?? null,
       },
     });
 
-    return NextResponse.json({ id: visit.id }, { status: 201 });
+    // Attach tags to the Restaurant (not Visit) if provided
+    if (Array.isArray(data.tags) && data.tags.length > 0) {
+      for (const raw of data.tags) {
+        const name = String(raw);
+        const slug = slugify(name);
+        const tag = await prisma.tag.upsert({
+          where: { slug },
+          update: { name },
+          create: { name, slug },
+        });
+        await prisma.restaurantTag.upsert({
+          where: { restaurantId_tagId: { restaurantId, tagId: tag.id } },
+          update: {},
+          create: { restaurantId, tagId: tag.id },
+        });
+      }
+    }
+
+    return NextResponse.json({ ok: true, data: visit });
   } catch (e: any) {
-    return new NextResponse(e?.message || "Visit create error", { status: 400 });
+    console.error(e);
+    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
 }

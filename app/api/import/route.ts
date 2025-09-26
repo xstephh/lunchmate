@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import Papa from "papaparse";
 import { prisma } from "@/lib/prisma";
 import { ImportPayloadSchema } from "@/lib/schema";
+import { slugify } from "@/lib/slug";
 
 type Row = {
   name: string;
@@ -36,80 +37,85 @@ function normalizeRow(r: Row) {
 
 export async function POST(req: Request) {
   try {
-    const ctype = req.headers.get("content-type") || "";
-    let rows: Row[] = [];
+    const body = await req.json().catch(() => ({}));
+    const items: any[] = Array.isArray(body) ? body : Array.isArray(body.items) ? body.items : [];
 
-    if (ctype.includes("multipart/form-data")) {
-      const form = await req.formData();
-      const f = form.get("file");
-      const j = form.get("json");
-      if (f && typeof f === "object" && "text" in f) {
-        const text = await (f as File).text();
-        const parsed = Papa.parse<Row>(text, { header: true, skipEmptyLines: true });
-        if (parsed.errors.length) {
-          return NextResponse.json(
-            { created: 0, updated: 0, errors: parsed.errors.length },
-            { status: 400 },
-          );
-        }
-        rows = parsed.data;
-      } else if (typeof j === "string" && j.trim().length) {
-        const json = JSON.parse(j);
-        const payload = ImportPayloadSchema.parse({ json });
-        rows = (payload.json ?? []) as Row[];
-      } else {
-        return new NextResponse("No file or json provided", { status: 400 });
-      }
-    } else {
-      // raw JSON body
-      const body = await req.json();
-      const payload = ImportPayloadSchema.parse(body);
-      rows = (payload.json ?? []) as Row[];
+    if (!items.length) {
+      return NextResponse.json({ ok: false, message: "No items provided" }, { status: 400 });
     }
 
     let created = 0;
     let updated = 0;
-    let errors = 0;
+    let linked = 0;
 
-    for (const r of rows) {
-      try {
-        const n = normalizeRow(r);
-        if (!n.name || !n.address || !n.cuisine) {
-          errors++;
-          continue;
-        }
-        const placeId = `${n.name}::${n.address}`;
-        const res = await prisma.restaurant.upsert({
-          where: { placeId },
-          update: {
-            name: n.name,
-            cuisine: n.cuisine,
-            address: n.address,
-            priceLevel: n.priceLevel,
-            lat: n.lat,
-            lng: n.lng,
-            source: "manual",
-          },
-          create: {
-            name: n.name,
-            cuisine: n.cuisine,
-            address: n.address,
-            priceLevel: n.priceLevel,
-            lat: n.lat,
-            lng: n.lng,
-            source: "manual",
-            placeId,
+    for (const n of items) {
+      // Normalize cuisines array
+      const cuisineSlugs: string[] = Array.isArray(n.cuisines)
+        ? n.cuisines.map((c: string) => slugify(c))
+        : n.cuisine
+        ? [slugify(String(n.cuisine))]
+        : [];
+
+      // Find existing by placeId first (unique), else by name+address pair
+      let existing = n.placeId
+        ? await prisma.restaurant.findUnique({ where: { placeId: n.placeId } })
+        : await prisma.restaurant.findFirst({
+            where: { name: n.name ?? "", address: n.address ?? "" },
+          });
+
+      if (existing) {
+        await prisma.restaurant.update({
+          where: { id: existing.id },
+          data: {
+            name: n.name ?? existing.name,
+            address: n.address ?? existing.address,
+            priceLevel: typeof n.priceLevel === "number" ? n.priceLevel : existing.priceLevel,
+            lat: typeof n.lat === "number" ? n.lat : existing.lat,
+            lng: typeof n.lng === "number" ? n.lng : existing.lng,
+            source: (n.source as any) ?? existing.source,
+            // DO NOT write legacy enum field `cuisine` anymore
           },
         });
-        if (res.createdAt.getTime() === res.updatedAt.getTime()) created++;
-        else updated++;
-      } catch {
-        errors++;
+        updated++;
+      } else {
+        existing = await prisma.restaurant.create({
+          data: {
+            name: n.name,
+            address: n.address,
+            priceLevel: typeof n.priceLevel === "number" ? n.priceLevel : null,
+            lat: typeof n.lat === "number" ? n.lat : null,
+            lng: typeof n.lng === "number" ? n.lng : null,
+            source: (n.source as any) ?? "manual",
+            placeId: n.placeId ?? null,
+            // DO NOT set `cuisine`
+          },
+        });
+        created++;
+      }
+
+      // Link cuisines (idempotent via composite key upsert)
+      for (const slug of cuisineSlugs) {
+        const name = slug
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+        const c = await prisma.cuisine.upsert({
+          where: { slug },
+          update: { name },
+          create: { name, slug },
+        });
+        await prisma.restaurantCuisine.upsert({
+          where: { restaurantId_cuisineId: { restaurantId: existing.id, cuisineId: c.id } },
+          update: {},
+          create: { restaurantId: existing.id, cuisineId: c.id },
+        });
+        linked++;
       }
     }
 
-    return NextResponse.json({ created, updated, errors });
+    return NextResponse.json({ ok: true, created, updated, linked });
   } catch (e: any) {
-    return new NextResponse(e?.message || "Import error", { status: 400 });
+    console.error(e);
+    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
 }

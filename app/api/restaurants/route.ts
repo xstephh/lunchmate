@@ -1,63 +1,104 @@
-// app/api/restaurants/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { RestaurantCreateSchema } from "@/lib/schema";
-import { z } from "zod";
-import { Prisma, Source, Cuisine as PCuisine } from "@prisma/client";
+import { slugify } from "@/lib/slug";
 
-const ListQuery = z.object({
-  cuisine: z.enum(["any", "japanese", "hong_kong", "western", "healthy", "other"]).optional(),
-});
+// GET /api/restaurants?cuisine=japanese or cuisines=japanese,western
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const cuisineParam = searchParams.get("cuisine");
+  const cuisinesParam = searchParams.get("cuisines");
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const parsed = ListQuery.safeParse({
-    cuisine: url.searchParams.get("cuisine") || undefined,
-  });
-
-  let where: Prisma.RestaurantWhereInput = { source: Source.manual };
-  if (parsed.success && parsed.data.cuisine && parsed.data.cuisine !== "any") {
-    where = { ...where, cuisine: parsed.data.cuisine as PCuisine };
+  const slugs = new Set<string>();
+  if (cuisineParam) slugs.add(slugify(cuisineParam));
+  if (cuisinesParam) {
+    cuisinesParam
+      .split(",")
+      .map((s) => slugify(s))
+      .filter(Boolean)
+      .forEach((s) => slugs.add(s));
   }
 
-  const items = await prisma.restaurant.findMany({
+  const where: any = {};
+  if (slugs.size > 0) {
+    where.cuisines = {
+      some: {
+        cuisine: { slug: { in: Array.from(slugs) } },
+      },
+    };
+  }
+
+  const data = await prisma.restaurant.findMany({
     where,
+    include: {
+      cuisines: { include: { cuisine: true } },
+      tags: { include: { tag: true } },
+    },
     orderBy: { createdAt: "desc" },
+    take: 100,
   });
-  return NextResponse.json({ items });
+
+  return NextResponse.json({ ok: true, data });
 }
 
-export async function POST(request: Request) {
+// POST /api/restaurants  (create a manual restaurant & link cuisines by slug)
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
-    const parsed = RestaurantCreateSchema.parse(body);
-    const placeId = `${parsed.name}::${parsed.address}`; // synthetic id for manual dedupe
+    const body = await req.json();
+    const {
+      name,
+      address,
+      lat = null,
+      lng = null,
+      priceLevel = null,
+      source = "manual",
+      placeId = null,
+      cuisines = [] as string[] | undefined,
+    } = body || {};
 
-    const created = await prisma.restaurant.upsert({
-      where: { placeId },
-      update: {
-        name: parsed.name,
-        cuisine: parsed.cuisine as unknown as PCuisine,
-        address: parsed.address,
-        priceLevel: parsed.priceLevel ?? null,
-        lat: parsed.lat ?? null,
-        lng: parsed.lng ?? null,
-        source: Source.manual,
-      },
-      create: {
-        name: parsed.name,
-        cuisine: parsed.cuisine as unknown as PCuisine,
-        address: parsed.address,
-        priceLevel: parsed.priceLevel ?? null,
-        lat: parsed.lat ?? null,
-        lng: parsed.lng ?? null,
-        source: Source.manual,
+    if (!name || !address) {
+      return NextResponse.json(
+        { ok: false, message: "name and address required" },
+        { status: 400 },
+      );
+    }
+
+    const created = await prisma.restaurant.create({
+      data: {
+        name,
+        address,
+        lat: typeof lat === "number" ? lat : null,
+        lng: typeof lng === "number" ? lng : null,
+        priceLevel: typeof priceLevel === "number" ? priceLevel : null,
+        source,
         placeId,
+        // DO NOT set legacy enum field `cuisine`
       },
     });
 
-    return NextResponse.json({ id: created.id }, { status: 201 });
+    // link cuisines if provided
+    if (Array.isArray(cuisines) && cuisines.length > 0) {
+      for (const raw of cuisines) {
+        const slug = slugify(raw);
+        const cname = slug
+          .split("-")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+          .join(" ");
+        const c = await prisma.cuisine.upsert({
+          where: { slug },
+          update: { name: cname },
+          create: { name: cname, slug },
+        });
+        await prisma.restaurantCuisine.upsert({
+          where: { restaurantId_cuisineId: { restaurantId: created.id, cuisineId: c.id } },
+          update: {},
+          create: { restaurantId: created.id, cuisineId: c.id },
+        });
+      }
+    }
+
+    return NextResponse.json({ ok: true, data: created });
   } catch (e: any) {
-    return new NextResponse(e?.message || "Invalid payload", { status: 400 });
+    console.error(e);
+    return NextResponse.json({ ok: false, error: String(e?.message || e) }, { status: 500 });
   }
 }
