@@ -1,95 +1,153 @@
-/* prisma/seed.cjs */
+/* eslint-disable no-console */
 const { PrismaClient } = require("@prisma/client");
 const prisma = new PrismaClient();
 
-const sampleRestaurants = [
-  {
-    name: "Sakura Bento",
-    cuisine: "japanese",
-    address: "12 Sushi St",
-    priceLevel: 2,
-    source: "manual",
-  },
-  {
-    name: "Tea & Taste",
-    cuisine: "hong_kong",
-    address: "88 Nathan Rd",
-    priceLevel: 1,
-    source: "manual",
-  },
-  {
-    name: "Green Bowl",
-    cuisine: "healthy",
-    address: "5 Leaf Ave",
-    priceLevel: 2,
-    source: "manual",
-  },
-  {
-    name: "Toast & Co",
-    cuisine: "western",
-    address: "101 Bread Ln",
-    priceLevel: 2,
-    source: "manual",
-  },
-];
-
-async function ensureTag(name) {
-  // Composite unique with NULL can't be used in upsert `where`, so:
-  const existing = await prisma.tag.findFirst({ where: { name, userId: null } });
-  if (existing) return existing;
-  return prisma.tag.create({ data: { name } });
+async function ensureCuisines(items) {
+  const results = [];
+  for (const { name, slug } of items) {
+    const row = await prisma.cuisine.upsert({
+      where: { slug },
+      update: { name },
+      create: { name, slug },
+    });
+    results.push(row);
+  }
+  return results;
 }
 
-async function ensureRestaurant(r) {
-  const syntheticPlaceId = r.placeId ?? `${r.name}::${r.address}`;
-  const existing = await prisma.restaurant.findUnique({
-    where: { placeId: syntheticPlaceId },
+async function ensureTags(items) {
+  const results = [];
+  for (const { name, slug } of items) {
+    const row = await prisma.tag.upsert({
+      where: { slug },
+      update: { name },
+      create: { name, slug },
+    });
+    results.push(row);
+  }
+  return results;
+}
+
+/**
+ * Find by (name,address) and create if missing.
+ * Then connect cuisines/tags via join tables with upsert on composite keys.
+ */
+async function ensureRestaurant(data, { cuisineSlugs = [], tagSlugs = [] } = {}) {
+  // IMPORTANT: we do NOT use upsert here because name is not unique.
+  let restaurant = await prisma.restaurant.findFirst({
+    where: { name: data.name, address: data.address },
   });
-  if (existing) return existing;
-  return prisma.restaurant.create({
-    data: { ...r, placeId: syntheticPlaceId },
-  });
+  if (!restaurant) {
+    restaurant = await prisma.restaurant.create({
+      data: {
+        name: data.name,
+        address: data.address,
+        lat: data.lat ?? null,
+        lng: data.lng ?? null,
+        priceLevel: data.priceLevel ?? null,
+        source: data.source ?? "manual",
+        placeId: data.placeId ?? null,
+        averagePublicRating: data.averagePublicRating ?? null,
+        // keep legacy cuisine column empty; we use M2M now
+        cuisine: null,
+      },
+    });
+  }
+
+  // Link cuisines
+  if (cuisineSlugs.length) {
+    const cuisines = await prisma.cuisine.findMany({
+      where: { slug: { in: cuisineSlugs } },
+    });
+    for (const c of cuisines) {
+      await prisma.restaurantCuisine.upsert({
+        where: {
+          restaurantId_cuisineId: {
+            restaurantId: restaurant.id,
+            cuisineId: c.id,
+          },
+        },
+        update: {},
+        create: {
+          restaurantId: restaurant.id,
+          cuisineId: c.id,
+        },
+      });
+    }
+  }
+
+  // Link tags
+  if (tagSlugs.length) {
+    const tags = await prisma.tag.findMany({
+      where: { slug: { in: tagSlugs } },
+    });
+    for (const t of tags) {
+      await prisma.restaurantTag.upsert({
+        where: {
+          restaurantId_tagId: {
+            restaurantId: restaurant.id,
+            tagId: t.id,
+          },
+        },
+        update: {},
+        create: { restaurantId: restaurant.id, tagId: t.id },
+      });
+    }
+  }
+
+  return restaurant;
 }
 
 async function main() {
-  // Tags
-  const quick = await ensureTag("quick");
-  const healthy = await ensureTag("healthy");
+  // Core cuisines
+  await ensureCuisines([
+    { name: "Japanese", slug: "japanese" },
+    { name: "Hong Kong", slug: "hong-kong" },
+    { name: "Healthy", slug: "healthy" },
+    { name: "Western", slug: "western" },
+  ]);
 
-  // Restaurants
-  for (const r of sampleRestaurants) {
-    await ensureRestaurant(r);
-  }
+  // Core tags
+  await ensureTags([
+    { name: "Quick", slug: "quick" },
+    { name: "Healthy", slug: "healthy" },
+    { name: "Budget", slug: "budget" },
+    { name: "Spicy", slug: "spicy" },
+  ]);
 
-  // One sample visit (idempotent: only create if missing)
-  const rest = await prisma.restaurant.findFirst({ where: { name: "Green Bowl" } });
-  if (rest) {
-    const existingVisit = await prisma.visit.findFirst({
-      where: { restaurantId: rest.id },
-    });
-    if (!existingVisit) {
-      const visit = await prisma.visit.create({
-        data: {
-          restaurantId: rest.id,
-          rating: 5,
-          notes: "Healthy and quick lunch.",
-          tags: {
-            create: [{ tagId: healthy.id }, { tagId: quick.id }],
-          },
-        },
-      });
-      // eslint-disable-next-line no-console
-      console.log("Seed visit:", visit.id);
-    }
-  }
+  // Sample restaurants (manual source)
+  await ensureRestaurant(
+    {
+      name: "Sushi Gen",
+      address: "123 Tokyo St",
+      lat: 35.68,
+      lng: 139.76,
+      priceLevel: 2,
+      source: "manual",
+    },
+    { cuisineSlugs: ["japanese"], tagSlugs: ["quick"] },
+  );
+
+  await ensureRestaurant(
+    {
+      name: "Cafe Central",
+      address: "456 Queen's Rd Central",
+      lat: 22.281,
+      lng: 114.158,
+      priceLevel: 2,
+      source: "manual",
+    },
+    { cuisineSlugs: ["hong-kong"], tagSlugs: ["budget"] },
+  );
+
+  console.log("✅ Seed complete");
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (e) => {
+  .catch((e) => {
     console.error(e);
-    await prisma.$disconnect();
     process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
   });

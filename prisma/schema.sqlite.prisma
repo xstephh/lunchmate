@@ -1,3 +1,4 @@
+// prisma/schema.sqlite.prisma
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,23 +8,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Cuisine {
-  japanese
-  hong_kong
-  western
-  healthy
-  other
+// ===== Legacy enums (kept for backfill) =====
+enum CuisineEnum {
+  JAPANESE
+  HONG_KONG
+  WESTERN
+  HEALTHY
+  CHINESE
+  KOREAN
+  THAI
+  VIETNAMESE
+  INDIAN
+  MALAYSIAN
+  ITALIAN
+  OTHER
 }
 
 enum Source {
   manual
   google
+  mock
 }
 
+enum PlacesProvider {
+  google
+  osm
+  mock
+}
+
+// ===== Core models =====
 model Restaurant {
   id                  String   @id @default(cuid())
   name                String
-  cuisine             Cuisine
   address             String
   lat                 Float?
   lng                 Float?
@@ -32,41 +48,97 @@ model Restaurant {
   placeId             String?  @unique
   averagePublicRating Float?
 
-  visits   Visit[]
+  // Legacy column (kept for backfill / compatibility; to be dropped in Step 5)
+  cuisine             CuisineEnum?
+
+  // Relations
+  visits    Visit[]
+  cuisines  RestaurantCuisine[]
+  tags      RestaurantTag[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([source, cuisine])
+  @@index([source])
+  @@index([placeId])
 }
 
 model Visit {
-  id           String   @id @default(cuid())
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
   restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   rating       Int
   notes        String?
-  tags         VisitTag[]
-  createdAt    DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@index([restaurantId, createdAt])
 }
 
 model Tag {
-  id        String   @id @default(cuid())
-  name      String
-  userId    String?
-  createdAt DateTime @default(now())
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  restaurants RestaurantTag[]
 
-  visits VisitTag[]
-
-  @@unique([userId, name])
+  @@index([name])
 }
 
-model VisitTag {
-  visit   Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  visitId String
-  tag     Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
-  tagId   String
+model Cuisine {
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  restaurants RestaurantCuisine[]
 
-  @@id([visitId, tagId])
+  @@index([name])
+}
+
+model RestaurantTag {
+  restaurantId String
+  tagId        String
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tag        Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, tagId])
+  @@index([tagId])
+}
+
+model RestaurantCuisine {
+  restaurantId String
+  cuisineId    String
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  cuisine    Cuisine    @relation(fields: [cuisineId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, cuisineId])
+  @@index([cuisineId])
+}
+
+// ===== Provider infra =====
+model PlacesCache {
+  id        String          @id @default(cuid())
+  provider  PlacesProvider
+  key       String
+  payload   Json
+  expiresAt DateTime
+  createdAt DateTime        @default(now())
+
+  @@unique([provider, key])
+  @@index([expiresAt])
+}
+
+model ProviderUsage {
+  id        String          @id @default(cuid())
+  provider  PlacesProvider
+  dateKey   String   // "YYYY-MM-DD"
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([provider, dateKey])
 }

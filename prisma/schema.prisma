@@ -1,106 +1,144 @@
-// prisma/schema.prisma
+// prisma/schema.sqlite.prisma
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  // Dev = SQLite (free). For Supabase later, switch provider to "postgresql" and DATABASE_URL.
   provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
-enum Cuisine {
-  japanese
-  hong_kong
-  western
-  healthy
-  other
+// ===== Legacy enums (kept for backfill) =====
+enum CuisineEnum {
+  JAPANESE
+  HONG_KONG
+  WESTERN
+  HEALTHY
+  CHINESE
+  KOREAN
+  THAI
+  VIETNAMESE
+  INDIAN
+  MALAYSIAN
+  ITALIAN
+  OTHER
 }
 
 enum Source {
   manual
   google
+  mock
 }
 
-model User {
-  id          String       @id @default(cuid())
-  name        String?
-  email       String?      @unique
-  restaurants Restaurant[]
-  visits      Visit[]
-  tags        Tag[]
-  settings    Settings?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+enum PlacesProvider {
+  google
+  osm
+  mock
 }
 
+// ===== Core models =====
 model Restaurant {
-  id                    String     @id @default(cuid())
-  userId                String?
-  user                  User?      @relation(fields: [userId], references: [id])
-  name                  String
-  cuisine               Cuisine
-  address               String
-  lat                   Float?
-  lng                   Float?
-  priceLevel            Int?
-  source                Source     @default(manual)
-  placeId               String?    @unique
-  averagePublicRating   Decimal?
-  visits                Visit[]
-  createdAt             DateTime   @default(now())
-  updatedAt             DateTime   @updatedAt
+  id                  String   @id @default(cuid())
+  name                String
+  address             String
+  lat                 Float?
+  lng                 Float?
+  priceLevel          Int?
+  source              Source   @default(manual)
+  placeId             String?  @unique
+  averagePublicRating Float?
 
-  @@index([source, cuisine])
-  @@index([name])
+  // Legacy column (kept for backfill / compatibility; to be dropped in Step 5)
+  cuisine             CuisineEnum?
+
+  // Relations
+  visits    Visit[]
+  cuisines  RestaurantCuisine[]
+  tags      RestaurantTag[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([source])
+  @@index([placeId])
 }
 
 model Visit {
-  id            String     @id @default(cuid())
-  userId        String?
-  user          User?      @relation(fields: [userId], references: [id])
-  restaurantId  String
-  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
-  rating        Int
-  notes         String?
-  spendCents    Int?
-  visitedAt     DateTime   @default(now())
-  tags          VisitTag[]
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String    @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  rating       Int
+  notes        String?
+  createdAt    DateTime  @default(now())
 
-  @@index([restaurantId, visitedAt])
+  @@index([restaurantId, createdAt])
 }
 
 model Tag {
-  id        String     @id @default(cuid())
-  name      String
-  userId    String?
-  user      User?      @relation(fields: [userId], references: [id])
-  visitTags VisitTag[]
-  createdAt DateTime   @default(now())
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  restaurants RestaurantTag[]
 
-  @@unique([userId, name])
+  @@index([name])
 }
 
-model VisitTag {
-  visitId String
-  tagId   String
+model Cuisine {
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+  restaurants RestaurantCuisine[]
 
-  visit Visit @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  tag   Tag   @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([visitId, tagId])
+  @@index([name])
 }
 
-model Settings {
-  id                String   @id @default(cuid())
-  userId            String?  @unique
-  user              User?    @relation(fields: [userId], references: [id])
-  epsilon           Float    @default(0.15)
-  minPublicRating   Float    @default(4.0)
-  radiusMeters      Int      @default(1000)
-  mixedWeightManual Float    @default(0.5)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+model RestaurantTag {
+  restaurantId String
+  tagId        String
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tag        Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, tagId])
+  @@index([tagId])
+}
+
+model RestaurantCuisine {
+  restaurantId String
+  cuisineId    String
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  cuisine    Cuisine    @relation(fields: [cuisineId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, cuisineId])
+  @@index([cuisineId])
+}
+
+// ===== Provider infra =====
+model PlacesCache {
+  id        String          @id @default(cuid())
+  provider  PlacesProvider
+  key       String
+  payload   Json
+  expiresAt DateTime
+  createdAt DateTime        @default(now())
+
+  @@unique([provider, key])
+  @@index([expiresAt])
+}
+
+model ProviderUsage {
+  id        String          @id @default(cuid())
+  provider  PlacesProvider
+  dateKey   String   // "YYYY-MM-DD"
+  count     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@unique([provider, dateKey])
 }
