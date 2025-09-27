@@ -101,7 +101,7 @@ export default function HomePage() {
 
           <div className="flex items-center justify-between pt-2">
             <div className="text-xs text-muted-foreground">
-              Radius: <b>1000m</b> (default) • Epsilon: <b>0.15</b>
+              Radius: <b>1000m</b> (default)
             </div>
             <Link href={{ pathname: "/suggest", query: findQuery }}>
               <Button>Find a place</Button>
