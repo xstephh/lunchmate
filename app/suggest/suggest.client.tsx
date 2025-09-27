@@ -167,7 +167,7 @@ export default function SuggestClient({ mode, cuisine }: { mode: string; cuisine
             >
               <Button variant="outline">Open in Google Maps</Button>
             </a>
-            <Button variant="outline" onClick={() => setShowForm((s) => !s)}>
+            <Button variant="warning" onClick={() => setShowForm((s) => !s)}>
               {showForm ? "Cancel" : "I went (rate)"}
             </Button>
           </div>

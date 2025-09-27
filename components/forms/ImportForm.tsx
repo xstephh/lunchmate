@@ -47,7 +47,7 @@ export function ImportForm() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-4">
-      {/* Guide / help box */}
+      {/* Guide box */}
       <div className="rounded-xl border bg-card/60 p-4">
         <p className="font-medium">
           Accepted columns (CSV header keys). Only <b>name</b> and <b>address</b> are required:
@@ -82,31 +82,46 @@ export function ImportForm() {
         </ul>
 
         <div className="mt-3 space-y-2 text-xs">
-          <div>
+          <div className="overflow-x-auto">
             <span className="font-semibold">CSV header: </span>
-            <code className="rounded bg-muted px-1 py-0.5 font-mono">{CSV_HEADER}</code>
+            <code className="rounded bg-muted px-1 py-0.5 font-mono break-all inline-block min-w-0">
+              {CSV_HEADER}
+            </code>
           </div>
+
           <div className="rounded-md bg-muted p-2 font-mono">
             <div className="mb-1 font-semibold">CSV row:</div>
             <div className="overflow-x-auto">
-              <code>{`Sakura Bento,japanese,12 Sushi St,35.68,139.76,2,"quick;spicy",manual,`}</code>
+              <code className="break-all inline-block min-w-0">
+                {`Sakura Bento,japanese,12 Sushi St,35.68,139.76,2,"quick;spicy",manual,`}
+              </code>
             </div>
           </div>
+
           <div className="rounded-md bg-muted p-2">
             <div className="mb-1 font-semibold">JSON array example:</div>
-            <pre className="overflow-x-auto text-xs">{JSON_EXAMPLE}</pre>
+            <pre className="overflow-x-auto text-xs whitespace-pre-wrap break-words">
+              {JSON_EXAMPLE}
+            </pre>
           </div>
         </div>
       </div>
 
       {/* Inputs */}
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
+      <div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="file">CSV file</Label>
-          <Input id="file" ref={fileRef} type="file" accept=".csv" aria-describedby="csv-help" />
+          <Input
+            id="file"
+            ref={fileRef}
+            type="file"
+            accept=".csv"
+            className="w-full"
+            aria-describedby="csv-help"
+          />
         </div>
 
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor="json">Or JSON array</Label>
           <textarea
             id="json"
@@ -117,9 +132,9 @@ export function ImportForm() {
           />
         </div>
 
-        <p id="csv-help" className="md:col-span-2 text-xs text-muted-foreground">
-          Header should be: <code className="font-mono">{CSV_HEADER}</code>
-        </p>
+        <div id="csv-help" className="md:col-span-2 overflow-x-auto text-xs text-muted-foreground">
+          Header should be: <code className="font-mono break-all inline-block">{CSV_HEADER}</code>
+        </div>
       </div>
 
       <div>

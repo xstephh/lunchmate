@@ -21,6 +21,8 @@
   --input: 214 32% 91%;
   --ring: 219 90% 56%;
   --radius: 0.75rem;
+  --warning: 42 95% 55%;
+  --warning-foreground: 42 100% 12%;
 }
 .dark {
   /* Dark */
@@ -39,6 +41,8 @@
   --border: 222 10% 20%;
   --input: 222 10% 20%;
   --ring: 219 90% 62%;
+  --warning: 42 95% 62%;
+  --warning-foreground: 24 100% 10%;
 }
 
 :root {
